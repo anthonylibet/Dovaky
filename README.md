@@ -35,8 +35,10 @@ Assets/
     SampleScene.unity      scène vide : Main Camera orthographique + AudioListener
   Scripts/
     Combat/                cœur de combat, C# pur (assembly Dovaky.Combat)
+      Net/                 serveur autoritaire, client, protocole binaire
+    Game/                  présentation Unity (assembly Dovaky.Game)
   Tests/
-    EditMode/              tests NUnit du cœur de combat
+    EditMode/              tests NUnit du cœur, du réseau et de la projection
 Packages/
   manifest.json            dépendances du projet
 ProjectSettings/           réglages versionnés (version d'éditeur, 2D, physique 2D, tags, build)
@@ -77,9 +79,51 @@ client  ────────────────────────
   dans le pathfinding, et générateur xorshift maison plutôt que `System.Random`,
   dont la suite n'est pas garantie identique d'un runtime .NET à l'autre.
 
-Le choix du transport réseau (Mirror, Netcode for GameObjects, serveur custom)
-reste ouvert : il s'agit de véhiculer des commandes et des événements, ce qui
-ne change rien au cœur.
+### Serveur, client et transport
+
+`Dovaky.Combat.Net` implémente cette boucle, toujours sans Unity :
+
+| Type | Rôle |
+|---|---|
+| `BattleServer` | autorité : vérifie **la propriété du combattant** puis délègue les règles à `Battle`, diffuse les événements, refuse en privé |
+| `BattleClient` + `ClientBattleState` | miroir du combat, reconstruit depuis une photographie initiale puis les événements |
+| `BattleCodec` | protocole binaire ; tout message tronqué ou d'un type inconnu ressort en `ProtocolException`, jamais en exception de bas niveau |
+| `IServerTransport` / `IClientTransport` | la seule surface à réimplémenter pour un vrai réseau |
+| `LoopbackNetwork` | transport en mémoire : tests, et mode « host » où serveur et client cohabitent |
+
+Deux contrôles vivent dans le serveur et nulle part ailleurs : **ce joueur
+pilote-t-il bien ce combattant**, et **ce message est-il exploitable**. Tout le
+reste appartient à `Battle`. Un client bricolé n'obtient donc rien de plus
+qu'un client honnête.
+
+Brancher **Mirror**, **Netcode for GameObjects** ou des sockets ne demande
+qu'une implémentation des deux interfaces de transport : ni le serveur, ni le
+client, ni les règles ne bougent. Ces packages ne sont volontairement pas
+encore installés — le choix reste ouvert, et rien dans le code n'en dépend.
+
+## Présentation Unity
+
+`Dovaky.Game` met en scène ce que le client reçoit. Aucun asset d'art n'est
+nécessaire : la grille et les combattants sont des losanges générés en mesh à
+l'exécution, pour que le projet soit jouable avant d'avoir des graphismes.
+
+| Composant | Rôle |
+|---|---|
+| `IsoGrid` | case ↔ monde ↔ écran, en s'appuyant sur `IsoProjection` (testé côté C# pur) |
+| `BattleFieldView` | tuiles du décor et surbrillance de la zone de déplacement |
+| `FighterView` | un combattant, et son déplacement case par case |
+| `BattleView` | rejoue les événements **un par un** : l'état miroir est instantané, l'animation non |
+| `BattleInputController` | clic gauche déplacer, clic droit attaquer, espace passer le tour |
+| `ScriptedOpponent` | adversaire rudimentaire, pour jouer le combat en solo dès Play |
+| `BattleBootstrap` | monte un combat de démonstration en mode host ; déjà posé sur l'objet `Battle` de `SampleScene` |
+
+La zone de déplacement affichée est calculée en local, mais ce n'est qu'un
+confort : le serveur peut refuser la commande, et c'est son refus qui est
+affiché.
+
+Les entrées utilisent l'ancien `Input` (le projet active les deux systèmes
+d'entrée), et la caméra doit rester orthographique et de face pour que la
+visée à la souris tombe juste.
 
 ### Règles couvertes
 
@@ -89,12 +133,12 @@ court (1 PM par case, les combattants bloquent le passage) · sorts avec coût e
 PA, portée min/max, ligne de vue, relance et limite de lancers par tour ·
 dégâts, mort, fin de combat quand une seule équipe reste debout.
 
-Pas encore là : zones d'effet, états et buffs, invocations, couche de
-présentation Unity, transport réseau.
+Pas encore là : zones d'effet, états et buffs, invocations, et un transport
+réseau réel (seul le transport en mémoire existe).
 
 ### Lancer les tests
 
-Dans Unity : **Window → General → Test Runner → EditMode → Run All** (37 tests).
+Dans Unity : **Window → General → Test Runner → EditMode → Run All** (63 tests).
 
 Comme le cœur ne dépend pas de Unity, ces mêmes tests peuvent aussi être
 compilés et exécutés par un simple `dotnet` en dehors de l'éditeur, ce qui est

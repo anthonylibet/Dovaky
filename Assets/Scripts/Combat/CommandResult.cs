@@ -13,6 +13,9 @@ namespace Dovaky.Combat
         BattleOver,
         UnknownFighter,
         NotYourTurn,
+
+        /// <summary>Le joueur a tenté d'agir avec un combattant qui n'est pas le sien.</summary>
+        NotYourFighter,
         FighterDead,
         DestinationOutOfBounds,
         DestinationNotWalkable,
