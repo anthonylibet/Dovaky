@@ -1,0 +1,31 @@
+# Normalize line endings for text files checked into the repo.
+* text=auto
+
+# Unity YAML assets: use Unity's smart merge tool (configure UnityYAMLMerge as
+# the mergetool in your Git client for these to merge cleanly).
+*.unity       merge=unityyamlmerge eol=lf
+*.prefab      merge=unityyamlmerge eol=lf
+*.asset       merge=unityyamlmerge eol=lf
+*.mat         merge=unityyamlmerge eol=lf
+*.anim        merge=unityyamlmerge eol=lf
+*.controller  merge=unityyamlmerge eol=lf
+*.physicMaterial2D merge=unityyamlmerge eol=lf
+*.meta        eol=lf
+*.cs          text diff=csharp eol=lf
+
+# Binary assets. Uncomment the "filter=lfs diff=lfs merge=lfs -text" form
+# instead of "binary" if you enable Git LFS on this repository.
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.psd   binary
+*.aseprite binary
+*.ase   binary
+*.wav   binary
+*.mp3   binary
+*.ogg   binary
+*.ttf   binary
+*.otf   binary
+*.fbx   binary
+*.dll   binary
