@@ -1,5 +1,6 @@
 using Dovaky.Combat;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace Dovaky.Game
 {
@@ -8,9 +9,17 @@ namespace Dovaky.Game
     /// vit dans <see cref="IsoProjection"/>, côté C# pur et testé : ici on ne
     /// fait que l'habiller en <see cref="Vector3"/>, pour que l'affichage et
     /// la visée à la souris ne puissent pas diverger.
+    ///
+    /// Les cases sont dessinées avec des <see cref="SpriteRenderer"/> et non
+    /// des meshes : Unity leur donne automatiquement le matériau sprite du
+    /// pipeline actif. Chercher un shader par son nom, à l'inverse, est fragile
+    /// — « Sprites/Default » existe en URP mais n'a pas de passe Universal2D,
+    /// donc le 2D Renderer ne le dessine pas du tout.
     /// </summary>
     public static class IsoGrid
     {
+        private static Sprite _whiteSprite;
+
         public static Vector3 CellToWorld(Cell cell, float tileWidth, float tileHeight, float z = 0f)
         {
             PlanePoint point = IsoProjection.CellToPlane(cell, tileWidth, tileHeight);
@@ -30,52 +39,73 @@ namespace Dovaky.Game
         }
 
         /// <summary>
-        /// Losange d'une case, centré sur l'origine. Un mesh généré évite de
-        /// dépendre du moindre asset : le projet tourne avant d'avoir des
-        /// graphismes.
+        /// Sprite blanc d'une unité, teinté ensuite par chaque renderer. Généré
+        /// à l'exécution : le projet s'affiche sans le moindre asset d'art.
         /// </summary>
-        public static Mesh CreateCellMesh(float tileWidth, float tileHeight)
+        public static Sprite WhiteSprite()
         {
-            float halfWidth = tileWidth * 0.5f;
-            float halfHeight = tileHeight * 0.5f;
+            if (_whiteSprite != null) return _whiteSprite;
 
-            var mesh = new Mesh { name = "IsoCell" };
-            mesh.vertices = new[]
-            {
-                new Vector3(0f, halfHeight, 0f),
-                new Vector3(halfWidth, 0f, 0f),
-                new Vector3(0f, -halfHeight, 0f),
-                new Vector3(-halfWidth, 0f, 0f),
-            };
-            mesh.triangles = new[] { 0, 1, 2, 0, 2, 3 };
-            mesh.uv = new[]
-            {
-                new Vector2(0.5f, 1f),
-                new Vector2(1f, 0.5f),
-                new Vector2(0.5f, 0f),
-                new Vector2(0f, 0.5f),
-            };
-            mesh.RecalculateBounds();
-            return mesh;
+            var texture = new Texture2D(1, 1) { hideFlags = HideFlags.DontSave };
+            texture.SetPixel(0, 0, Color.white);
+            texture.Apply();
+
+            _whiteSprite = Sprite.Create(texture, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 1f);
+            _whiteSprite.hideFlags = HideFlags.DontSave;
+            return _whiteSprite;
         }
 
         /// <summary>
-        /// Matériau non éclairé pour ces losanges. On essaie plusieurs shaders :
-        /// le projet doit s'afficher que le URP Asset 2D ait été créé ou non.
+        /// Crée un losange isométrique et renvoie sa racine.
+        ///
+        /// Le losange est un carré tourné à 45°, puis écrasé verticalement.
+        /// L'écrasement est porté par un objet parent parce qu'Unity applique
+        /// l'échelle AVANT la rotation : une échelle non uniforme sur l'objet
+        /// tourné donnerait un parallélogramme de travers, pas un losange.
         /// </summary>
-        public static Material CreateUnlitMaterial(Color color)
+        public static GameObject CreateDiamond(
+            string name,
+            Transform parent,
+            Vector3 localPosition,
+            float tileWidth,
+            float tileHeight,
+            Color color,
+            int sortingOrder,
+            float fill = 1f)
         {
-            Shader shader = Shader.Find("Sprites/Default")
-                ?? Shader.Find("Universal Render Pipeline/2D/Sprite-Unlit-Default")
-                ?? Shader.Find("Unlit/Color");
+            var root = new GameObject(name);
+            root.transform.SetParent(parent, worldPositionStays: false);
+            root.transform.localPosition = localPosition;
+            root.transform.localScale = new Vector3(1f, tileHeight / tileWidth, 1f);
 
-            if (shader == null)
-            {
-                Debug.LogWarning("Aucun shader non éclairé trouvé : les cases resteront invisibles.");
-                return null;
-            }
+            var shape = new GameObject("Shape");
+            shape.transform.SetParent(root.transform, worldPositionStays: false);
+            shape.transform.localRotation = Quaternion.Euler(0f, 0f, 45f);
 
-            return new Material(shader) { color = color, hideFlags = HideFlags.DontSave };
+            // Un carré de côté c tourné à 45° occupe une largeur c * racine(2).
+            float side = tileWidth * fill / Mathf.Sqrt(2f);
+            shape.transform.localScale = new Vector3(side, side, 1f);
+
+            SpriteRenderer renderer = shape.AddComponent<SpriteRenderer>();
+            renderer.sprite = WhiteSprite();
+            renderer.color = color;
+            renderer.sortingOrder = sortingOrder;
+            return root;
+        }
+
+        public static void SetColor(GameObject diamond, Color color)
+        {
+            if (diamond == null) return;
+
+            SpriteRenderer renderer = diamond.GetComponentInChildren<SpriteRenderer>();
+            if (renderer != null) renderer.color = color;
+        }
+
+        /// <summary>Nom du pipeline de rendu actif, pour les diagnostics.</summary>
+        public static string ActivePipelineName()
+        {
+            RenderPipelineAsset pipeline = GraphicsSettings.currentRenderPipeline;
+            return pipeline == null ? "Built-in (aucun URP Asset assigné)" : pipeline.GetType().Name;
         }
     }
 }

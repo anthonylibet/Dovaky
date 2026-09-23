@@ -8,7 +8,11 @@ namespace Dovaky.Game
     /// <summary>Représentation d'un combattant : un losange coloré par équipe.</summary>
     public sealed class FighterView : MonoBehaviour
     {
+        private const int FighterSortingOrder = 20;
+
         private BattleFieldView _field;
+        private GameObject _shape;
+        private Color _color;
 
         public int FighterId { get; private set; }
 
@@ -18,13 +22,17 @@ namespace Dovaky.Game
         {
             FighterId = fighterId;
             _field = field;
+            _color = color;
             Cell = cell;
 
-            MeshFilter filter = gameObject.AddComponent<MeshFilter>();
-            filter.sharedMesh = IsoGrid.CreateCellMesh(field.TileWidth * 0.6f, field.TileHeight * 1.6f);
-
-            MeshRenderer renderer = gameObject.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = IsoGrid.CreateUnlitMaterial(color);
+            _shape = IsoGrid.CreateDiamond(
+                "Shape",
+                transform,
+                Vector3.zero,
+                field.TileWidth * 0.55f,
+                field.TileWidth * 0.55f,
+                color,
+                FighterSortingOrder);
 
             transform.position = _field.WorldPositionOf(cell);
         }
@@ -60,13 +68,7 @@ namespace Dovaky.Game
 
         public void SetDead()
         {
-            MeshRenderer renderer = GetComponent<MeshRenderer>();
-            if (renderer != null && renderer.sharedMaterial != null)
-            {
-                Color faded = renderer.sharedMaterial.color;
-                faded.a = 0.25f;
-                renderer.sharedMaterial.color = faded;
-            }
+            IsoGrid.SetColor(_shape, new Color(_color.r, _color.g, _color.b, 0.25f));
         }
     }
 }

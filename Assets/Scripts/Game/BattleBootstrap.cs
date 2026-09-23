@@ -88,7 +88,42 @@ namespace Dovaky.Game
 
             if (placeCamera) CentrerCamera(carte, field);
 
+            Diagnostiquer(field);
             Debug.Log("Combat prêt : clic gauche pour se déplacer, clic droit pour attaquer, espace pour passer le tour.");
+        }
+
+        /// <summary>
+        /// Trace de quoi identifier un écran vide sans avoir à deviner :
+        /// pipeline actif, nombre de tuiles réellement construites, état de la
+        /// caméra. Trois causes d'écran noir, trois lignes de console.
+        /// </summary>
+        private static void Diagnostiquer(BattleFieldView field)
+        {
+            Debug.Log("[Dovaky] Pipeline de rendu : " + IsoGrid.ActivePipelineName());
+
+            if (field.TileCount == 0)
+            {
+                Debug.LogError("[Dovaky] Aucune tuile construite : le client n'a pas reçu la photographie du combat.");
+            }
+            else
+            {
+                Debug.Log("[Dovaky] Tuiles construites : " + field.TileCount);
+            }
+
+            Camera camera = Camera.main;
+            if (camera == null)
+            {
+                Debug.LogError("[Dovaky] Aucune caméra taguée MainCamera : la scène ne peut rien afficher.");
+                return;
+            }
+
+            if (!camera.orthographic)
+            {
+                Debug.LogWarning("[Dovaky] La caméra n'est pas orthographique : la visée à la souris sera fausse.");
+            }
+
+            Debug.Log("[Dovaky] Caméra « " + camera.name + " » en " + camera.transform.position
+                      + ", taille orthographique " + camera.orthographicSize);
         }
 
         private static void CentrerCamera(BattleMap carte, BattleFieldView field)

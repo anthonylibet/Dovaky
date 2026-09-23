@@ -7,19 +7,21 @@ namespace Dovaky.Game
 {
     /// <summary>
     /// Le décor : une tuile par case, plus une couche de surbrillance pour la
-    /// zone de déplacement ou la portée d'un sort. Ne décide de rien, se
-    /// contente de rendre l'état que le client a reçu.
+    /// zone de déplacement. Ne décide de rien, se contente de rendre l'état que
+    /// le client a reçu.
     /// </summary>
     public sealed class BattleFieldView : MonoBehaviour
     {
-        private readonly Dictionary<Cell, MeshRenderer> _tiles = new Dictionary<Cell, MeshRenderer>();
-        private readonly List<GameObject> _highlights = new List<GameObject>();
+        private const int TileSortingOrder = 0;
+        private const int HighlightSortingOrder = 10;
 
-        private Mesh _cellMesh;
-        private Material _floorMaterial;
-        private Material _obstacleMaterial;
-        private Material _wallMaterial;
-        private Material _highlightMaterial;
+        private static readonly Color FloorColor = new Color(0.42f, 0.47f, 0.56f);
+        private static readonly Color ObstacleColor = new Color(0.62f, 0.5f, 0.32f);
+        private static readonly Color WallColor = new Color(0.16f, 0.16f, 0.2f);
+        private static readonly Color HighlightColor = new Color(0.35f, 0.8f, 1f, 0.55f);
+
+        private readonly Dictionary<Cell, GameObject> _tiles = new Dictionary<Cell, GameObject>();
+        private readonly List<GameObject> _highlights = new List<GameObject>();
 
         private float _tileWidth = IsoProjection.DefaultTileWidth;
         private float _tileHeight = IsoProjection.DefaultTileHeight;
@@ -28,32 +30,38 @@ namespace Dovaky.Game
 
         public float TileHeight => _tileHeight;
 
+        /// <summary>Nombre de tuiles construites, utile pour diagnostiquer un écran vide.</summary>
+        public int TileCount => _tiles.Count;
+
         public void Build(ClientBattleState state, float tileWidth, float tileHeight)
         {
             Clear();
 
             _tileWidth = tileWidth;
             _tileHeight = tileHeight;
-            _cellMesh = IsoGrid.CreateCellMesh(tileWidth, tileHeight);
-            _floorMaterial = IsoGrid.CreateUnlitMaterial(new Color(0.22f, 0.25f, 0.3f));
-            _obstacleMaterial = IsoGrid.CreateUnlitMaterial(new Color(0.45f, 0.38f, 0.25f));
-            _wallMaterial = IsoGrid.CreateUnlitMaterial(new Color(0.12f, 0.12f, 0.15f));
-            _highlightMaterial = IsoGrid.CreateUnlitMaterial(new Color(0.3f, 0.7f, 1f, 0.45f));
 
             for (int y = 0; y < state.Height; y++)
             {
                 for (int x = 0; x < state.Width; x++)
                 {
                     var cell = new Cell(x, y);
-                    Material material;
+                    Color color;
                     switch (state.GetCell(cell))
                     {
-                        case CellKind.Wall: material = _wallMaterial; break;
-                        case CellKind.Obstacle: material = _obstacleMaterial; break;
-                        default: material = _floorMaterial; break;
+                        case CellKind.Wall: color = WallColor; break;
+                        case CellKind.Obstacle: color = ObstacleColor; break;
+                        default: color = FloorColor; break;
                     }
 
-                    _tiles[cell] = CreateQuad("Cell " + cell, cell, material, z: 0f);
+                    _tiles[cell] = IsoGrid.CreateDiamond(
+                        "Cell " + cell,
+                        transform,
+                        IsoGrid.CellToWorld(cell, _tileWidth, _tileHeight),
+                        _tileWidth,
+                        _tileHeight,
+                        color,
+                        TileSortingOrder,
+                        fill: 0.94f);
                 }
             }
         }
@@ -66,8 +74,15 @@ namespace Dovaky.Game
 
             foreach (Cell cell in cells)
             {
-                MeshRenderer highlight = CreateQuad("Highlight " + cell, cell, _highlightMaterial, z: -0.01f);
-                _highlights.Add(highlight.gameObject);
+                _highlights.Add(IsoGrid.CreateDiamond(
+                    "Highlight " + cell,
+                    transform,
+                    IsoGrid.CellToWorld(cell, _tileWidth, _tileHeight),
+                    _tileWidth,
+                    _tileHeight,
+                    HighlightColor,
+                    HighlightSortingOrder,
+                    fill: 0.8f));
             }
         }
 
@@ -81,7 +96,7 @@ namespace Dovaky.Game
             _highlights.Clear();
         }
 
-        public Vector3 WorldPositionOf(Cell cell, float z = -0.1f)
+        public Vector3 WorldPositionOf(Cell cell, float z = 0f)
         {
             return IsoGrid.CellToWorld(cell, _tileWidth, _tileHeight, z);
         }
@@ -89,26 +104,12 @@ namespace Dovaky.Game
         public void Clear()
         {
             ClearHighlights();
-            foreach (MeshRenderer tile in _tiles.Values)
+            foreach (GameObject tile in _tiles.Values)
             {
-                if (tile != null) Destroy(tile.gameObject);
+                if (tile != null) Destroy(tile);
             }
 
             _tiles.Clear();
-        }
-
-        private MeshRenderer CreateQuad(string name, Cell cell, Material material, float z)
-        {
-            var go = new GameObject(name);
-            go.transform.SetParent(transform, worldPositionStays: false);
-            go.transform.localPosition = IsoGrid.CellToWorld(cell, _tileWidth, _tileHeight, z);
-
-            MeshFilter filter = go.AddComponent<MeshFilter>();
-            filter.sharedMesh = _cellMesh;
-
-            MeshRenderer renderer = go.AddComponent<MeshRenderer>();
-            renderer.sharedMaterial = material;
-            return renderer;
         }
 
         private void OnDestroy() => Clear();

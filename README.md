@@ -121,6 +121,18 @@ La zone de déplacement affichée est calculée en local, mais ce n'est qu'un
 confort : le serveur peut refuser la commande, et c'est son refus qui est
 affiché.
 
+Le rendu passe par des `SpriteRenderer` et non par des meshes avec un shader
+cherché par son nom. C'est délibéré : `Sprites/Default` existe en URP mais n'a
+pas de passe `Universal2D`, donc le 2D Renderer ne le dessine pas — de quoi
+obtenir un écran noir sans la moindre erreur en console. Un `SpriteRenderer`
+reçoit automatiquement le matériau sprite du pipeline actif, qu'on soit en
+built-in, en URP 3D ou en URP 2D.
+
+Au démarrage, `BattleBootstrap` écrit trois diagnostics préfixés `[Dovaky]` :
+pipeline de rendu actif, nombre de tuiles construites, état de la caméra. Si
+l'écran reste vide, ces lignes disent laquelle des trois causes est en jeu —
+et leur absence totale signifie que la scène ouverte n'est pas `SampleScene`.
+
 Les entrées utilisent l'ancien `Input` (le projet active les deux systèmes
 d'entrée), et la caméra doit rester orthographique et de face pour que la
 visée à la souris tombe juste.
